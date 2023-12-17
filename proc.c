@@ -225,7 +225,7 @@ fork(void)
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
 void
-exit(void)
+exit(int status)  // bol2 ej3: añadir el estado al proceso
 {
   struct proc *curproc = myproc();
   struct proc *p;
@@ -234,6 +234,7 @@ exit(void)
   if(curproc == initproc)
     panic("init exiting");
 
+  curproc->ex_status=status;
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd]){
@@ -273,7 +274,7 @@ exit(void)
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
 int
-wait(void)
+wait(int *status)  // bol2 ej3: meter el ex_status de procesos zombie en *status
 {
   struct proc *p;
   int havekids, pid;
@@ -289,6 +290,7 @@ wait(void)
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
+        *status = p->ex_status; // bol2 ej3
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;

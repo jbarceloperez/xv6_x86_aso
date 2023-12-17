@@ -9,11 +9,11 @@ int main(int argc , char * argv [])
     if (date(&r))
     {
         printf (2 , " date failed \n");
-        exit(0)();
+        exit(0);
     }
 
     // Pon aquí tu código para imprimir la fecha en el formato que desees
     printf(1, "%d/%d/%d %d:%d:%d\n", r.day, r.month, r.year, r.hour, r.minute, r.second);
     
-    exit(0)();
+    exit(0);
 }

@@ -13,17 +13,26 @@ sys_fork(void)
   return fork();
 }
 
+// bol2 ej3
 int
 sys_exit(void)
 {
-  exit();
+  int status;
+  if(argint(0, &status) < 0)
+    return -1;
+  // se desplaza 8 a la izquierda para que pueda funcionar la macro de posix wexitstatus que desplaza 8 bits a la derecha
+  exit(status<<8);  
   return 0;  // not reached
 }
 
+// bol2 ej3
 int
 sys_wait(void)
 {
-  return wait();
+  int *status;
+  if(argptr(0,(void **) &status, sizeof(int*)) < 0)
+    return -1;
+  return wait(status);
 }
 
 int

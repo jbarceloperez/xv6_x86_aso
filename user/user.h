@@ -1,10 +1,16 @@
+// bol2 ej3
+# define WIFEXITED(status)   (((status) & 0x7f) == 0)
+# define WEXITSTATUS(status) (((status) & 0xff00) >> 8)
+# define WIFSIGNALED(status) (((status) & 0x7f) != 0)
+# define WEXITTRAP(status)   (((status) & 0x7f) - 1)
+
 struct stat;
 struct rtcdate;
 
 // system calls
 extern int fork(void);
-extern int exit(void) __attribute__((noreturn));
-extern int wait(void);
+extern int exit(int status) __attribute__((noreturn));  // bol2 ej3
+extern int wait(int *status);       // bol2 ej3
 extern int pipe(int*);
 extern int write(int, const void*, int);
 extern int read(int, void*, int);

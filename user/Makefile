@@ -3,6 +3,7 @@ UPROGS=\
 	date\
 	dup2test\
 	echo\
+	exitwait\
 	forktest\
 	grep\
 	init\
