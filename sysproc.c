@@ -51,7 +51,7 @@ sys_getpid(void)
   return myproc()->pid;
 }
 
-int             // bol3 ej1
+int             
 sys_sbrk(void)
 {
   int addr;
@@ -60,9 +60,16 @@ sys_sbrk(void)
   if(argint(0, &n) < 0)
     return -1;
   addr = myproc()->sz;
-  // no growproc
+  // no growproc  // bol3 ej1
+
+  if(n < 0)               // bol3 ej2
+  {
+    if(growproc(n) < 0)
+      return -1;
+  }
+  else
+    myproc()->sz += n;
   
-  myproc()->sz += n;
   return addr;
 }
 

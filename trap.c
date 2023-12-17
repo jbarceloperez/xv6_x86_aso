@@ -81,6 +81,19 @@ trap(struct trapframe *tf)
     break;
 
   case T_PGFLT:     // bol3 ej1
+    // pag invalida debajo de pila
+    if(rcr2() <= myproc()->guardpage) // bol3 ej2
+    {
+      cprintf("overflow: bajo la pila\n");
+      myproc()->killed=1;
+		  break;
+	  }
+    if(rcr2() > myproc()->sz) // bol3 ej2
+    {
+      cprintf("overflow: por encima del proceso\n");
+      myproc()->killed=1;
+		  break;
+	  }
     char *pag;
     pag = kalloc();
     if (pag == 0) 
@@ -92,9 +105,11 @@ trap(struct trapframe *tf)
     }
 
     memset(pag,0,PGSIZE);
+    pde_t *pgdir = myproc()->pgdir ;
+    int va = PGROUNDDOWN(rcr2()) ;
     // se mapea
-    if(mappages(myproc()->pgdir, (char*)PGROUNDDOWN(rcr2()),PGSIZE,V2P(pag),PTE_W|PTE_U)<0){
-      cprintf("alloc page out of memory\n");
+    if(mappages(pgdir, (char*)va, PGSIZE, V2P(pag), PTE_W|PTE_U) < 0){
+      cprintf("alloc page out of memory(2)\n");
       kfree(pag);
       myproc()->killed=1;
     }
@@ -104,12 +119,19 @@ trap(struct trapframe *tf)
 
   //PAGEBREAK: 13
   default:
-    if(myproc() == 0 || (tf->cs&3) == 0){
+    if(myproc() == 0){  // bol3 ej2
       // In kernel, it must be our mistake.
       cprintf("unexpected trap %d from cpu %d eip %x (cr2=0x%x)\n",
               tf->trapno, cpuid(), tf->eip, rcr2());
       panic("trap");
     }
+    if((tf->cs&3) == 0){  // bol3 ej2
+      // ahora no hace falta el panic
+      cprintf("unexpected trap %d from cpu %d eip %x (cr2=0x%x)\n",
+              tf->trapno, cpuid(), tf->eip, rcr2());
+      panic("trap");
+    }
+
     // In user space, assume process misbehaved.
     cprintf("pid %d %s: trap %d err %d on cpu %d "
             "eip 0x%x addr 0x%x--kill proc\n",

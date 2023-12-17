@@ -66,6 +66,7 @@ exec(char *path, char **argv)
   if((sz = allocuvm(pgdir, sz, sz + 2*PGSIZE)) == 0)
     goto bad;
   clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
+  curproc->guardpage = sz - PGSIZE;   // bol3 ej2
   sp = sz;
 
   // Push argument strings, prepare rest of stack in ustack.
