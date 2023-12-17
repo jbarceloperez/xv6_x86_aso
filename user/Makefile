@@ -1,6 +1,7 @@
 UPROGS=\
 	cat\
 	date\
+	dup2test\
 	echo\
 	forktest\
 	grep\

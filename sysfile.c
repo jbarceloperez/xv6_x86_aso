@@ -66,22 +66,44 @@ sys_dup(void)
   return fd;
 }
 
+// fdalloc para dup2
+static int
+fdalloc2(struct file *f, int newfd)
+{
+  struct proc *curproc = myproc();
+  if(curproc->ofile[newfd] == 0){
+    curproc->ofile[newfd] = f;
+    return newfd;
+  }
+  
+  return -1;
+}
+
 int
-sys_dup2(void)
+sys_dup2(void)    // bol2 ej2
 {
   struct file *f, *newf;
   int oldfd, newfd;
 
+  // err EBADF fd no abierto
   if(argfd(0, &oldfd, &f) < 0)
     return -1;
-  if(argint(0, &newfd) < 0)
+  // err EBADF fuera de rango
+  if(argint(1, &newfd) < 0)
+    return -1;
+  if((newfd<0) || (newfd>=NOFILE))
     return -1;
   if(oldfd==newfd)
     return newfd;
-  
+  // cerrar newfd si estaba abierto 
   if((newf = myproc()->ofile[newfd]))
+  {
+    myproc()->ofile[newfd] = 0;
     fileclose(newf);
-  myproc()->ofile[newfd] = f;
+  }
+
+  if((newfd=fdalloc2(f,newfd)) < 0)
+    return -1;
 
   filedup(f);
   return newfd;

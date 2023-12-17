@@ -19,7 +19,7 @@ extern int link(const char*, const char*);
 extern int mkdir(const char*);
 extern int chdir(const char*);
 extern int dup(int);
-extern int dup2(int, int);
+extern int dup2(int, int);      // bol2 ej2
 extern int getpid(void);
 extern char* sbrk(int);
 extern int sleep(int);
