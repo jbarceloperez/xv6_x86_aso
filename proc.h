@@ -36,6 +36,8 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
 struct proc {
+  uint prio;                   // bol4 ej1
+  struct proc *sig_prio;       // bol4 ej1: siguiente proceso en su cola de prioridad
   int ex_status;               // bol2 ej3
   uint guardpage;              // bol3 ej2
   uint sz;                     // Size of process memory (bytes)

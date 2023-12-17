@@ -7,9 +7,17 @@
 #include "proc.h"
 #include "spinlock.h"
 
+int arranque = 1;
+
+struct cola {             // bol4 ej1
+  struct proc *primero;
+  struct proc *ultimo;
+};
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  struct cola prio_colas[NPRIOS];
 } ptable;
 
 static struct proc *initproc;
@@ -24,6 +32,11 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  // inicializar colas    // bol4 ej1
+  for (int i = 0; i < NPRIOS; i++) {
+    ptable.prio_colas[i].primero = NULL;
+    ptable.prio_colas[i].ultimo = NULL;
+  }
 }
 
 // Must be called with interrupts disabled
@@ -88,6 +101,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->prio = 5;    // bol4 ej1: prioridad normal al crearse
 
   release(&ptable.lock);
 
@@ -115,6 +129,33 @@ found:
   return p;
 }
 
+// manipulacion de colas de prioridad        // bol4 ej1
+void addtoqueue(struct proc *p, int prio) 
+{
+  if (&ptable.prio_colas[prio].primero == NULL)
+  {
+    ptable.prio_colas[prio].primero = p;
+    ptable.prio_colas[prio].ultimo = p;
+  }
+  else
+  {
+    ptable.prio_colas[prio].ultimo->sig_prio = p;
+    ptable.prio_colas[prio].ultimo = p;
+  }
+}
+
+struct proc *delfromqueue(int prio)
+{
+  if (ptable.prio_colas[prio].primero == NULL)
+    return NULL; // cola vacia
+  struct proc *p = ptable.prio_colas[prio].primero;
+  if (p->sig_prio == NULL)
+    ptable.prio_colas[prio].ultimo = NULL;
+  ptable.prio_colas[prio].primero = p->sig_prio;
+  return p;
+}
+
+
 //PAGEBREAK: 32
 // Set up first user process.
 void
@@ -124,6 +165,9 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   p = allocproc();
+
+  p->prio = 1;      // bol4 ej1
+  p->sig_prio = NULL;
 
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
@@ -215,6 +259,8 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  np->prio = curproc->prio;   // hereda la prio del padre
+  addtoqueue(np, np->prio);   // bol4 ej1
 
   release(&ptable.lock);
 
@@ -337,10 +383,21 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
-
+    
+    if(arranque == 1)
+    {
+      cprintf("hola\n");  // DEBUG
+      addtoqueue(&ptable.proc[0], ptable.proc[0].prio);
+      arranque = 0;
+    }
+    // bol4 ej1
+    for (int q = 0; q < NPRIOS || p != NULL; q++)  // recorre las colas por orden de prioridad
+    {
+      p=delfromqueue(q);  // si la cola esta vacia devuelve NULL y sigue con ls siguiente cola, sino asigna p y sale del for  
+    }
+    if (p != NULL)
+    {
+      cprintf("proceso elegido [%d]\n", p->pid);  // DEBUG
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -356,7 +413,6 @@ scheduler(void)
       c->proc = 0;
     }
     release(&ptable.lock);
-
   }
 }
 
@@ -464,9 +520,11 @@ wakeup1(void *chan)
 {
   struct proc *p;
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)  
+    if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
+      addtoqueue(p, p->prio);       // bol4 ej1
+    }
 }
 
 // Wake up all processes sleeping on chan.
