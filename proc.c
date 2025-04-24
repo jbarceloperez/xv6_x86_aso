@@ -377,9 +377,13 @@ scheduler(void)
 
     // bol4: recorre las colas de prioridad de mas alta a mas baja
     for (int i = 0; i < NQUEUE; i++) {
-      p = dequeue(i);
-      if(p) // si la cola tiene procesos listos ejecuta el cuerpo del for
-      {
+      // intentamos sacar procesos de esta prioridad hasta hallar uno válido
+      while((p = dequeue(i)) != 0){
+        if(p->state != RUNNABLE){
+          // Descarta zombies, durmientes...
+          continue;
+        }
+        // si la cola tiene procesos listos y RUNNABLE, ejecuta
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
         // before jumping back to us.
@@ -399,11 +403,11 @@ scheduler(void)
           enqueue(p->prio, p);
 
         // Salimos de bucle de prioridades y vuelta al sti()/acquire
+        i = NQUEUE; // como el break sale del while, se mueve el iterador al final de las colas
         break;
       }
     }
     release(&ptable.lock);
-
   }
 }
 
