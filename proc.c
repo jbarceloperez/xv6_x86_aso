@@ -10,7 +10,37 @@
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  struct cola_prio queue[NQUEUE];  // bol4: una cola_prio por cada prioridad definida
 } ptable;
+
+// bol4: inserta p al final de la cola q
+static void
+enqueue(int q, struct proc *p)
+{
+  struct cola_prio *cola = &ptable.queue[q];
+  p->next = NULL; // como es el ultimo en llegar a la cola, no lleva a nadie detras
+  if(cola->tail)  // si ya hay elementos, tail (ultimo elem) apunta a p
+    cola->tail->next = p;
+  else            // si no hay elementos, head y tail se asignan a p
+    cola->head = p;
+  cola->tail = p; // p se convierte en el final de la cola
+}
+
+// bol4: saca y devuelve el primer proceso de la cola q (o NULL (0) si está vacía)
+static struct proc*
+dequeue(int q)
+{
+  struct cola_prio *cola = &ptable.queue[q];
+  struct proc *p = cola->head;  // recupera el primer elemento
+  if(p){  // lo trata si hay elementos en la cola
+    cola->head = p->next; // el siguiente elemento de p se convierte en head
+    if(!cola->head)  // si queda vacía, tail tambien es 0
+      cola->tail = NULL;
+    p->next = NULL;   // al no estar en la cola, next pasa a NULL
+  }
+  return p;
+}
+
 
 static struct proc *initproc;
 
@@ -24,6 +54,9 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  for(int i = 0; i < NQUEUE; i++){  // bol4: inicializar las colas
+    ptable.queue[i].head = ptable.queue[i].tail = NULL;
+  }
 }
 
 // Must be called with interrupts disabled
@@ -88,6 +121,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->prio = DEF_PRIO;   // bol4: se le asigna la prioridad por defecto
 
   release(&ptable.lock);
 
@@ -149,6 +183,7 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+  enqueue(p->prio, p); // bol4: se encola el nuevo proceso al ponerse RUNNABLE
 
   release(&ptable.lock);
 }
@@ -199,6 +234,7 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+  np->prio = curproc->prio; // bol4: el hijo hereda la prioridad del padre
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -215,6 +251,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  enqueue(np->prio, np);  // bol4: se encola el nuevo proceso al ponerse RUNNABLE
 
   release(&ptable.lock);
 
@@ -337,23 +374,33 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+    // bol4: recorre las colas de prioridad de mas alta a mas baja
+    for (int i = 0; i < NQUEUE; i++) {
+      p = dequeue(i);
+      if(p) // si la cola tiene procesos listos ejecuta el cuerpo del for
+      {
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+
+        // Si sigue RUNNABLE, lo reinsertamos al final de su cola
+        if(p->state == RUNNABLE)
+          enqueue(p->prio, p);
+
+        // Salimos de bucle de prioridades y vuelta al sti()/acquire
+        break;
+      }
     }
     release(&ptable.lock);
 
@@ -392,6 +439,9 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
+  // bol4: cuando un proceso pasa a RUNNABLE, se encola en su prioridad
+  enqueue(myproc()->prio, myproc());
+
   sched();
   release(&ptable.lock);
 }
@@ -465,8 +515,10 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
+      enqueue(p->prio, p); // bol4: se encola el proceso al ponerse RUNNABLE
+    }
 }
 
 // Wake up all processes sleeping on chan.
