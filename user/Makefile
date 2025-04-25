@@ -22,6 +22,7 @@ UPROGS=\
 	usertests\
 	wc\
 	zombie\
+	tprio\
 
 # Try to infer the correct TOOLPREFIX if not set
 ifndef TOOLPREFIX

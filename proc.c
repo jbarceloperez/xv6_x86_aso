@@ -378,7 +378,7 @@ scheduler(void)
     // bol4: recorre las colas de prioridad de mas alta a mas baja
     for (int i = 0; i < NQUEUE; i++) {
       // intentamos sacar procesos de esta prioridad hasta hallar uno válido
-      while((p = dequeue(i)) != 0){
+      while((p = dequeue(i)) != NULL){
         if(p->state != RUNNABLE){
           // Descarta zombies, durmientes...
           continue;
@@ -593,3 +593,42 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+// bol4 ej2: implementacion de getprio, recorre la tabla de 
+// procesos hasta encontrar el que tiene el pid que se busca
+
+int
+getprio(int pid)
+{
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){ // recorre la tabla de procesos hasta encontrar el que tiene el pid que se busca
+    if(p->pid == pid){
+      release(&ptable.lock);
+      return p->prio;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+}
+
+// bol4 ej2: implementacion de setprio, recorre la tabla de 
+// procesos hasta encontrar el que tiene el pid que se busca
+// y actualiza el campo p->prio al valor pasado como parametro
+int
+setprio(int pid, uint nprio)
+{
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      p->prio = nprio;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+}
+
+
