@@ -378,8 +378,10 @@ scheduler(void)
     // bol4: recorre las colas de prioridad de mas alta a mas baja
     for (int i = 0; i < NQUEUE; i++) {
       // intentamos sacar procesos de esta prioridad hasta hallar uno válido
+      // cprintf("escaneando cola %d: head=%p tail=%p\n", i, ptable.queue[i].head, ptable.queue[i].tail);  // DEBUG
       while((p = dequeue(i)) != NULL){
         if(p->state != RUNNABLE){
+          // cprintf("  – salto pid %d estado %d de cola %d\n", p->pid, p->state, i);  // DEBUG
           // Descarta zombies, durmientes...
           continue;
         }
@@ -399,8 +401,8 @@ scheduler(void)
         c->proc = 0;
 
         // Si sigue RUNNABLE, lo reinsertamos al final de su cola
-        if(p->state == RUNNABLE)
-          enqueue(p->prio, p);
+        // if(p->state == RUNNABLE)
+        //   enqueue(p->prio, p);
 
         // Salimos de bucle de prioridades y vuelta al sti()/acquire
         i = NQUEUE; // como el break sale del while, se mueve el iterador al final de las colas
@@ -596,6 +598,7 @@ procdump(void)
 
 // bol4 ej2: implementacion de getprio, recorre la tabla de 
 // procesos hasta encontrar el que tiene el pid que se busca
+// si el pid no existe devuelve -1
 
 int
 getprio(int pid)
@@ -612,23 +615,63 @@ getprio(int pid)
   return -1;
 }
 
+
+// bol4 ej2: funcion para eliminar un proceso de una cola, debe
+// llamarse entre candados igual que enqueue y dequeue
+static void
+remove_process_from_queue(int q, struct proc *p)
+{
+  struct cola_prio *queue = &ptable.queue[q];
+  struct proc *it = queue->head;  // iterador de la cola de procesos
+  struct proc *prev = 0;
+
+  while(it){
+    if(it == p){
+      if(prev)  // se actualiza el valor de next del anterior proceso de la cola
+        prev->next = it->next;
+      else      // o head si era el primero
+        queue->head = it->next;
+      // si era el ultimo se actualiza tail
+      if(it->next == 0)
+        queue->tail = prev;
+      // se elimina el valor de p->next
+      p->next = NULL;
+      return;
+    }
+    prev = it;
+    it = it->next;
+  }
+}
+
+
 // bol4 ej2: implementacion de setprio, recorre la tabla de 
 // procesos hasta encontrar el que tiene el pid que se busca
 // y actualiza el campo p->prio al valor pasado como parametro
+// y mueve de cola el proceso. si el pid no existe devuelve -1.
 int
 setprio(int pid, uint nprio)
 {
   struct proc *p;
+  uint oldprio = -1;
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
+      oldprio = p->prio;
       p->prio = nprio;
-      release(&ptable.lock);
-      return 0;
+      // release(&ptable.lock);
+      // return 0;
+      break;
     }
   }
+
+  if (oldprio == -1)
+    return -1;  // devuelve error, no se ha encontrado el proceso
+
+  remove_process_from_queue(oldprio, p);
+  enqueue(nprio, p);
+  
   release(&ptable.lock);
-  return -1;
+  return 0;
 }
 
 
