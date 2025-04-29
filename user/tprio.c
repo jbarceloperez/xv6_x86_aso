@@ -31,19 +31,26 @@ main(int argc, char *argv[])
   if (fork() == 0)
   {
     if (fork())  // Ambos ejecutan:
-    {  printf(1, "FUNC - (pid=%d)\n", getpid()); setprio(getpid(), LOWEST_PRIO); do_calc("-"); }
+    { 
+      // printf(1, "FUNC - (pid=%d, prio=%d)\n", getpid(), LOWEST_PRIO);    /*DEBUG*/
+      setprio(getpid(), LOWEST_PRIO); do_calc("-"); }
     else
-    {  printf(1, "FUNC + (pid=%d)\n", getpid()); setprio(getpid(), LOWEST_PRIO); do_calc("+");}
-    
+    { 
+      // printf(1, "FUNC + (pid=%d, prio=%d))\n", getpid(), LOWEST_PRIO);   /*DEBUG*/
+      setprio(getpid(), LOWEST_PRIO); do_calc("+");}
     exit(0);
   }
 
   if (fork() == 0)
   {
     if (fork())  // Ambos ejecutan:
-    {  printf(1, "FUNC * (pid=%d)\n", getpid())/*DEBUG*/; setprio(getpid(), NORM_PRIO); do_calc("*"); }
+    {  
+      // printf(1, "FUNC * (pid=%d, prio=%d))\n", getpid(), NORM_PRIO);     /*DEBUG*/ 
+      setprio(getpid(), NORM_PRIO); do_calc("*"); }
     else
-    {  printf(1, "FUNC ^ (pid=%d)\n", getpid())/*DEBUG*/; setprio(getpid(), LOWEST_PRIO); do_calc("^");}
+    {  
+      // printf(1, "FUNC ^ (pid=%d, prio=%d))\n", getpid(), LOWEST_PRIO);   /*DEBUG*/ 
+      setprio(getpid(), LOWEST_PRIO); do_calc("^");}
     
     exit(0);
   }
@@ -61,14 +68,14 @@ main(int argc, char *argv[])
     if (fork())  // Ambos ejecutan
     {  
       setprio (getpid(), HIGHEST_PRIO); 
-      printf(1, "FUNC 0 (pid=%d)\n", getpid());     // DEBUG
+      // printf(1, "FUNC 0 (pid=%d)\n", getpid());     // DEBUG
       do_calc("0");
       exit(0);
     }
     else
     {  
       setprio (getpid(), HIGHEST_PRIO+1); 
-      printf(1, "FUNC 1 (pid=%d)\n", getpid());     // DEBUG
+      // printf(1, "FUNC 1 (pid=%d)\n", getpid());     // DEBUG
       do_calc("1"); 
       exit(0);}
   }
