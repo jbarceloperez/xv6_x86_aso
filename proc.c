@@ -399,11 +399,7 @@ scheduler(void)
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
-
-        // Si sigue RUNNABLE, lo reinsertamos al final de su cola
-        // if(p->state == RUNNABLE)
-        //   enqueue(p->prio, p);
-
+        
         // Salimos de bucle de prioridades y vuelta al sti()/acquire
         i = NQUEUE; // como el break sale del while, se mueve el iterador al final de las colas
         break;
