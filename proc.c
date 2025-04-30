@@ -7,6 +7,13 @@
 #include "proc.h"
 #include "spinlock.h"
 
+int arranque = 1;
+
+struct cola {             // bol4 ej1
+  struct proc *primero;
+  struct proc *ultimo;
+};
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -149,6 +156,33 @@ found:
   return p;
 }
 
+// manipulacion de colas de prioridad        // bol4 ej1
+void addtoqueue(struct proc *p, int prio) 
+{
+  if (&ptable.prio_colas[prio].primero == NULL)
+  {
+    ptable.prio_colas[prio].primero = p;
+    ptable.prio_colas[prio].ultimo = p;
+  }
+  else
+  {
+    ptable.prio_colas[prio].ultimo->sig_prio = p;
+    ptable.prio_colas[prio].ultimo = p;
+  }
+}
+
+struct proc *delfromqueue(int prio)
+{
+  if (ptable.prio_colas[prio].primero == NULL)
+    return NULL; // cola vacia
+  struct proc *p = ptable.prio_colas[prio].primero;
+  if (p->sig_prio == NULL)
+    ptable.prio_colas[prio].ultimo = NULL;
+  ptable.prio_colas[prio].primero = p->sig_prio;
+  return p;
+}
+
+
 //PAGEBREAK: 32
 // Set up first user process.
 void
@@ -158,6 +192,9 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   p = allocproc();
+
+  p->prio = 1;      // bol4 ej1
+  p->sig_prio = NULL;
 
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
