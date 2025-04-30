@@ -118,3 +118,27 @@ sys_date(void)
   cmostime(r);
   return 0;
 }
+
+// bol4 ej2: las dos llamadas al sistema getprio y setprio
+int
+sys_getprio(void)
+{
+  int pid;
+  if(argint(0, &pid) < 0)
+    return -1;
+ 
+  return getprio(pid);
+}
+
+int
+sys_setprio(void)
+{
+  int pid;
+  uint nprio;
+  if(argint(0, &pid) < 0 || argint(1, (int*)&nprio) < 0)
+    return -1;
+  if (nprio < 0 || nprio >= NQUEUE)  // comprobar nprio valido
+    return -1;
+  // TODO
+  return setprio(pid, nprio);
+}

@@ -17,8 +17,37 @@ struct cola {             // bol4 ej1
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
-  struct cola prio_colas[NPRIOS];
+  struct cola_prio queue[NQUEUE];  // bol4: una cola_prio por cada prioridad definida
 } ptable;
+
+// bol4: inserta p al final de la cola q
+static void
+enqueue(int q, struct proc *p)
+{
+  struct cola_prio *cola = &ptable.queue[q];
+  p->next = NULL; // como es el ultimo en llegar a la cola, no lleva a nadie detras
+  if(cola->tail)  // si ya hay elementos, tail (ultimo elem) apunta a p
+    cola->tail->next = p;
+  else            // si no hay elementos, head y tail se asignan a p
+    cola->head = p;
+  cola->tail = p; // p se convierte en el final de la cola
+}
+
+// bol4: saca y devuelve el primer proceso de la cola q (o NULL (0) si está vacía)
+static struct proc*
+dequeue(int q)
+{
+  struct cola_prio *cola = &ptable.queue[q];
+  struct proc *p = cola->head;  // recupera el primer elemento
+  if(p){  // lo trata si hay elementos en la cola
+    cola->head = p->next; // el siguiente elemento de p se convierte en head
+    if(!cola->head)  // si queda vacía, tail tambien es 0
+      cola->tail = NULL;
+    p->next = NULL;   // al no estar en la cola, next pasa a NULL
+  }
+  return p;
+}
+
 
 static struct proc *initproc;
 
@@ -32,10 +61,8 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
-  // inicializar colas    // bol4 ej1
-  for (int i = 0; i < NPRIOS; i++) {
-    ptable.prio_colas[i].primero = NULL;
-    ptable.prio_colas[i].ultimo = NULL;
+  for(int i = 0; i < NQUEUE; i++){  // bol4: inicializar las colas
+    ptable.queue[i].head = ptable.queue[i].tail = NULL;
   }
 }
 
@@ -101,7 +128,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-  p->prio = 5;    // bol4 ej1: prioridad normal al crearse
+  p->prio = DEF_PRIO;   // bol4: se le asigna la prioridad por defecto
 
   release(&ptable.lock);
 
@@ -193,6 +220,7 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+  enqueue(p->prio, p); // bol4: se encola el nuevo proceso al ponerse RUNNABLE
 
   release(&ptable.lock);
 }
@@ -243,6 +271,7 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+  np->prio = curproc->prio; // bol4: el hijo hereda la prioridad del padre
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -259,8 +288,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
-  np->prio = curproc->prio;   // hereda la prio del padre
-  addtoqueue(np, np->prio);   // bol4 ej1
+  enqueue(np->prio, np);  // bol4: se encola el nuevo proceso al ponerse RUNNABLE
 
   release(&ptable.lock);
 
@@ -383,34 +411,36 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    
-    if(arranque == 1)
-    {
-      cprintf("hola\n");  // DEBUG
-      addtoqueue(&ptable.proc[0], ptable.proc[0].prio);
-      arranque = 0;
-    }
-    // bol4 ej1
-    for (int q = 0; q < NPRIOS || p != NULL; q++)  // recorre las colas por orden de prioridad
-    {
-      p=delfromqueue(q);  // si la cola esta vacia devuelve NULL y sigue con ls siguiente cola, sino asigna p y sale del for  
-    }
-    if (p != NULL)
-    {
-      cprintf("proceso elegido [%d]\n", p->pid);  // DEBUG
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+    // bol4: recorre las colas de prioridad de mas alta a mas baja
+    for (int i = 0; i < NQUEUE; i++) {
+      // intentamos sacar procesos de esta prioridad hasta hallar uno válido
+      // cprintf("escaneando cola %d: head=%p tail=%p\n", i, ptable.queue[i].head, ptable.queue[i].tail);  // DEBUG
+      while((p = dequeue(i)) != NULL){
+        if(p->state != RUNNABLE){
+          // cprintf("  – salto pid %d estado %d de cola %d\n", p->pid, p->state, i);  // DEBUG
+          // Descarta zombies, durmientes...
+          continue;
+        }
+        // si la cola tiene procesos listos y RUNNABLE, ejecuta
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+        
+        // Salimos de bucle de prioridades y vuelta al sti()/acquire
+        i = NQUEUE; // como el break sale del while, se mueve el iterador al final de las colas
+        break;
+      }
     }
     release(&ptable.lock);
   }
@@ -448,6 +478,9 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
+  // bol4: cuando un proceso pasa a RUNNABLE, se encola en su prioridad
+  enqueue(myproc()->prio, myproc());
+
   sched();
   release(&ptable.lock);
 }
@@ -520,10 +553,10 @@ wakeup1(void *chan)
 {
   struct proc *p;
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)  
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
-      addtoqueue(p, p->prio);       // bol4 ej1
+      enqueue(p->prio, p); // bol4: se encola el proceso al ponerse RUNNABLE
     }
 }
 
@@ -595,3 +628,83 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+// bol4 ej2: implementacion de getprio, recorre la tabla de 
+// procesos hasta encontrar el que tiene el pid que se busca
+// si el pid no existe devuelve -1
+
+int
+getprio(int pid)
+{
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){ // recorre la tabla de procesos hasta encontrar el que tiene el pid que se busca
+    if(p->pid == pid){
+      release(&ptable.lock);
+      return p->prio;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+}
+
+
+// bol4 ej2: funcion para eliminar un proceso de una cola, debe
+// llamarse entre candados igual que enqueue y dequeue
+static void
+remove_process_from_queue(int q, struct proc *p)
+{
+  struct cola_prio *queue = &ptable.queue[q];
+  struct proc *it = queue->head;  // iterador de la cola de procesos
+  struct proc *prev = 0;
+
+  while(it){
+    if(it == p){
+      if(prev)  // se actualiza el valor de next del anterior proceso de la cola
+        prev->next = it->next;
+      else      // o head si era el primero
+        queue->head = it->next;
+      // si era el ultimo se actualiza tail
+      if(it->next == 0)
+        queue->tail = prev;
+      // se elimina el valor de p->next
+      p->next = NULL;
+      return;
+    }
+    prev = it;
+    it = it->next;
+  }
+}
+
+
+// bol4 ej2: implementacion de setprio, recorre la tabla de 
+// procesos hasta encontrar el que tiene el pid que se busca
+// y actualiza el campo p->prio al valor pasado como parametro
+// y mueve de cola el proceso. si el pid no existe devuelve -1.
+int
+setprio(int pid, uint nprio)
+{
+  struct proc *p;
+  uint oldprio = -1;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      oldprio = p->prio;
+      p->prio = nprio;
+      // release(&ptable.lock);
+      // return 0;
+      break;
+    }
+  }
+
+  if (oldprio == -1)
+    return -1;  // devuelve error, no se ha encontrado el proceso
+
+  remove_process_from_queue(oldprio, p);
+  enqueue(nprio, p);
+  
+  release(&ptable.lock);
+  return 0;
+}
+
+

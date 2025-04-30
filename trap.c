@@ -44,7 +44,7 @@ trap(struct trapframe *tf)
     myproc()->tf = tf;
     syscall();
     if(myproc()->killed)
-      exit(tf->trapno + 1);   // por los macros se le suma 1 1 al numero de trap
+      exit(tf->trapno + 1);   // por los macros se le suma 1 al numero de trap, ya que el error puede ser 0
     return;
   }
 

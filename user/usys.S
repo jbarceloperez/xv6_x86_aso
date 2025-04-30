@@ -31,3 +31,5 @@ SYSCALL(sbrk)
 SYSCALL(sleep)
 SYSCALL(uptime)
 SYSCALL(date)
+SYSCALL(getprio)  # bol4 ej2
+SYSCALL(setprio)  # bol4 ej2

@@ -31,6 +31,8 @@ extern char* sbrk(int);
 extern int sleep(int);
 extern int uptime(void);
 extern int date(struct rtcdate *);
+extern int getprio(int);        // bol4 ej2
+extern int setprio(int, uint);  // bol4 ej2
 
 // ulib.c
 extern int stat(const char*, struct stat*);
@@ -45,3 +47,8 @@ extern void* memset(void*, int, uint);
 extern void* malloc(uint);
 extern void free(void*);
 extern int atoi(const char*);
+
+// bol4 ej2: para que los tests funcionen
+#define NORM_PRIO 5
+#define LOWEST_PRIO 9
+#define HIGHEST_PRIO 0

@@ -120,6 +120,8 @@ void            userinit(void);
 int             wait(int*); // bol2 ej3
 void            wakeup(void*);
 void            yield(void);
+int             getprio(int);  // bol4 ej2
+int             setprio(int, uint);  // bol4)
 
 // swtch.S
 void            swtch(struct context**, struct context*);
